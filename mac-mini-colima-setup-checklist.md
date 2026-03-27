@@ -2,7 +2,7 @@
 
 This checklist is the operator-friendly companion to [mac-mini-colima-bootstrap.sh](/Users/alecmccauley/Documents/Coworkers/mac-mini-colima-bootstrap.sh).
 
-It is intentionally narrower than [Setting Up Openclaw Agents on Mac Mini.md](/Users/alecmccauley/Documents/Coworkers/Setting%20Up%20Openclaw%20Agents%20on%20Mac%20Mini.md): the goal here is to turn a fresh Apple Silicon Mac mini into a hardened, ARM-native Colima host with one persistent work container running. It does not configure OpenClaw itself, Google Chat, or any tenant-specific secrets. The bootstrap script also does not automate Cloudflare Tunnel setup, but this checklist includes an optional manual SSH section for that flow.
+It is intentionally narrower than [Setting Up Openclaw Agents on Mac Mini.md](/Users/alecmccauley/Documents/Coworkers/Setting%20Up%20Openclaw%20Agents%20on%20Mac%20Mini.md): the goal here is to turn a fresh Apple Silicon Mac mini into a hardened, ARM-native Colima host with one persistent work container running. It does not configure OpenClaw itself, Google Chat, or any tenant-specific secrets. The bootstrap script also does not automate Cloudflare Tunnel setup, but this checklist includes optional manual sections for Cloudflare-backed SSH and browser-rendered VNC access.
 
 ## Container Stack Used In This Guide
 
@@ -242,7 +242,28 @@ ssh <mac-mini-username>@ssh.example.com
 
 - [ ] `Manual` Confirm `cloudflared` opens the browser for Cloudflare Access authentication and the SSH session lands on the Mac mini.
 
-## 8. Daily Workflow
+## 8. Optional: Browser-Rendered VNC Through Cloudflare Tunnel
+
+- [ ] `Manual` Enable Screen Sharing, Remote Management, or another VNC-compatible server on the Mac mini.
+- [ ] `Manual` If your VNC server requires its own password, configure that password before exposing it through Cloudflare Access.
+- [ ] `Manual` Confirm the VNC service is listening locally on the Mac mini. Example for the default VNC port:
+
+```bash
+sudo lsof -nP -iTCP:5900 -sTCP:LISTEN
+nc -vz localhost 5900
+```
+
+- [ ] `Manual` If the VNC server listens on a non-default port, note that port before creating the Cloudflare route.
+- [ ] `Manual` In the Cloudflare dashboard, edit the Mac mini tunnel and add a published application route for a hostname such as `vnc.example.com`.
+- [ ] `Manual` For the VNC route service, select `TCP` and point it to `localhost:5900` or your VNC server's local listening port.
+- [ ] `Manual` Create a Cloudflare Access self-hosted application for that VNC hostname.
+- [ ] `Manual` In the Access application, set Browser rendering to `VNC`.
+- [ ] `Manual` Restrict the VNC application to approved identities with `Allow` or `Block` policies only.
+- [ ] `Manual` Confirm the VNC Access application does not use `Bypass` or `Service Auth`, because Cloudflare does not support those policy types for browser-rendered applications.
+- [ ] `Manual` From a client browser, open `https://vnc.example.com`, authenticate with Cloudflare Access, and enter the VNC password when prompted.
+- [ ] `Manual` Confirm the Mac mini desktop renders successfully in the browser.
+
+## 9. Daily Workflow
 
 - [ ] `Manual` Check container status:
 
@@ -272,7 +293,7 @@ docker stop workbox
 docker start workbox
 ```
 
-## 9. Source-Doc Recommendations Carried Forward
+## 10. Source-Doc Recommendations Carried Forward
 
 These recommendations from the source document are intentionally reflected in this host-only guide:
 
@@ -285,6 +306,7 @@ These recommendations from the source document are intentionally reflected in th
 - [ ] `Included` `virtiofs` for fast host/container file access
 - [ ] `Included` closed-host posture with macOS firewall and stealth mode
 - [ ] `Included` optional manual SSH access through Cloudflare Tunnel with client-side `cloudflared`
+- [ ] `Included` optional browser-rendered VNC access through Cloudflare Tunnel and Cloudflare Access
 
 These recommendations are intentionally left out of the bootstrap script because this setup still stops short of full application and tenant provisioning:
 
@@ -294,7 +316,7 @@ These recommendations are intentionally left out of the bootstrap script because
 - [ ] `Excluded` gws skills and tool-policy configuration
 - [ ] `Excluded` tenant secrets, service accounts, and API key injection
 
-## 10. When This Host Is Ready
+## 11. When This Host Is Ready
 
 You are ready to start work when all of the following are true:
 
@@ -305,3 +327,4 @@ You are ready to start work when all of the following are true:
 - [ ] `docker exec -it workbox bash` works
 - [ ] files created in `$HOME/workspace` are visible in `/workspace`
 - [ ] if you are using Cloudflare Tunnel for SSH, `ssh <username>@ssh.example.com` works after Cloudflare Access authentication
+- [ ] if you are using browser-rendered VNC through Cloudflare, `https://vnc.example.com` shows the Mac mini desktop after Cloudflare Access authentication
