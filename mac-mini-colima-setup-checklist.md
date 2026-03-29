@@ -60,6 +60,8 @@ chmod +x mac-mini-colima-bootstrap.sh
   --image alpine/openclaw:latest
 ```
 
+- [ ] `Manual` If the script triggers the Apple Command Line Tools installer prompt, finish that installer and then rerun the same bootstrap command. On some fresh macOS images this first-install step is not exposed through `softwareupdate -l`.
+
 - [ ] `Optional` Run the script in dry-run mode first if you want to inspect every action:
 
 ```bash
@@ -76,6 +78,8 @@ chmod +x mac-mini-colima-bootstrap.sh
 - [ ] `Automated` Warns if automatic login does not appear to be enabled for the current user.
 - [ ] `Automated` Warns if FileVault appears to be enabled.
 - [ ] `Automated` Installs Xcode Command Line Tools if needed.
+  - when macOS exposes a CLT package through `softwareupdate`, the script installs it directly
+  - otherwise, the script requests Apple's installer prompt with `xcode-select --install`, stops, and tells you to rerun it after installation completes
 - [ ] `Automated` Installs Homebrew if needed.
 - [ ] `Automated` Installs:
   - `colima`

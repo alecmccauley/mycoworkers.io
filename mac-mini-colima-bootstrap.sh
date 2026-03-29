@@ -49,6 +49,7 @@ CURRENT_USER="$(id -un)"
 CURRENT_UID="$(id -u)"
 DEFAULT_PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 STATE_DIR="${HOME}/.config/mac-mini-colima"
+ORIGINAL_COMMAND=()
 
 # These paths are derived from the selected container name so multiple copies of
 # the script can be used safely with different work containers if needed.
@@ -93,6 +94,37 @@ warn() {
 die() {
   printf '[ERROR] %s\n' "$*" >&2
   exit 1
+}
+
+print_rerun_command() {
+  local part
+  local first=1
+
+  for part in "${ORIGINAL_COMMAND[@]}"; do
+    if [[ "${first}" -eq 0 ]]; then
+      printf ' '
+    fi
+    printf '%q' "${part}"
+    first=0
+  done
+  printf '\n'
+}
+
+manual_step_required() {
+  local message="$1"
+  shift
+
+  warn "${message}"
+  while [[ "$#" -gt 0 ]]; do
+    log "$1"
+    shift
+  done
+
+  exit 2
+}
+
+command_line_tools_directory_exists() {
+  [[ -d /Library/Developer/CommandLineTools ]]
 }
 
 command_exists() {
@@ -276,7 +308,9 @@ install_command_line_tools() {
   if [[ "${DRY_RUN}" -eq 1 ]]; then
     log "+ touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
     log "+ softwareupdate -l"
-    log "+ softwareupdate -i '<latest Command Line Tools package>'"
+    log "+ if a Command Line Tools package is listed: softwareupdate -i '<latest Command Line Tools package>'"
+    log "+ otherwise: xcode-select --install"
+    log "+ after the Apple installer completes: rerun this bootstrap command"
     log "+ xcode-select -switch /Library/Developer/CommandLineTools"
     return
   fi
@@ -286,10 +320,42 @@ install_command_line_tools() {
   clt_package="$(softwareupdate -l 2>/dev/null | awk -F'*' '/Command Line Tools/ {print $2}' | sed 's/^ *//' | tail -n 1)"
   rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 
-  [[ -n "${clt_package}" ]] || die "Could not find a Command Line Tools package via softwareupdate."
+  if [[ -n "${clt_package}" ]]; then
+    sudo softwareupdate -i "${clt_package}" --verbose
+    sudo xcode-select -switch /Library/Developer/CommandLineTools
+    return
+  fi
 
-  sudo softwareupdate -i "${clt_package}" --verbose
-  sudo xcode-select -switch /Library/Developer/CommandLineTools
+  warn "softwareupdate did not list a Command Line Tools package. Falling back to Apple's installer prompt."
+
+  local install_output=""
+  local install_status=0
+  local rerun_command=""
+
+  rerun_command="$(print_rerun_command)"
+
+  set +e
+  install_output="$(xcode-select --install 2>&1)"
+  install_status=$?
+  set -e
+
+  if command_line_tools_directory_exists; then
+    sudo xcode-select -switch /Library/Developer/CommandLineTools
+    return
+  fi
+
+  if [[ "${install_status}" -eq 0 ]] || printf '%s' "${install_output}" | grep -Eqi 'install requested|already being installed'; then
+    manual_step_required \
+      "Complete the Apple Command Line Tools installer, then rerun this bootstrap command." \
+      "Apple's installer was requested with: xcode-select --install" \
+      "Rerun command: ${rerun_command}"
+  fi
+
+  manual_step_required \
+    "Could not open the Apple Command Line Tools installer automatically." \
+    "Install either Xcode or the standalone Command Line Tools package from Apple, then rerun this bootstrap command." \
+    "xcode-select output: ${install_output}" \
+    "Rerun command: ${rerun_command}"
 }
 
 ensure_homebrew() {
@@ -667,6 +733,7 @@ EOF
 }
 
 main() {
+  ORIGINAL_COMMAND=("$0" "$@")
   parse_args "$@"
   derive_paths
 
