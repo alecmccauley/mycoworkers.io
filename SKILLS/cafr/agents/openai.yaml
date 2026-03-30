@@ -1,0 +1,8 @@
+interface:
+  display_name: "CAFR"
+  short_description: "Clean docs and Quebec French refs"
+  default_prompt: "Use $cafr to prepare this PDF or folder into clean English Markdown and bilingual Quebec French layout-reference Markdown."
+
+policy:
+  allow_implicit_invocation: false
+
